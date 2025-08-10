@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Trò chơi tính toán — Hoàn chỉnh</title>
+<style>
+:root{
+  --bg:#f4f7fb; --card:#fff; --text:#072033; --muted:#5b7a8f; --accent:#06b6d4;
+}
+body.dark{ --bg:#071021; --card:#072033; --text:#e6f3fb; --muted:#93b4c7; --accent:#22c55e; }
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Roboto,Arial;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px}
+.wrap{width:100%;max-width:1060px;background:var(--card);border-radius:12px;padding:18px;box-shadow:0 12px 30px rgba(2,6,23,0.08)}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+h1{margin:0;font-size:20px}
+.small{font-size:13px;color:var(--muted)}
+.controls{display:flex;gap:8px;align-items:center}
+.btn{cursor:pointer;border:0;padding:8px 12px;border-radius:8px;background:var(--accent);color:#022;font-weight:700}
+.btn.ghost{background:transparent;border:1px solid rgba(0,0,0,0.06);color:var(--muted)}
+main{display:grid;grid-template-columns:1fr 320px;gap:18px;margin-top:14px}
+@media(max-width:960px){main{grid-template-columns:1fr} .right{order:2}}
+.panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:14px;border-radius:10px;border:1px solid rgba(0,0,0,0.04)}
+.logo{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#60a5fa);display:flex;align-items:center;justify-content:center;font-weight:800;color:#022;font-size:22px}
+#homeView .hero{display:flex;gap:12px;align-items:center}
+#gameView{display:none}
+#question{font-size:34px;font-weight:800;text-align:center;padding:18px;border-radius:10px;background:rgba(0,0,0,0.03)}
+#answer{margin-top:12px;padding:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);width:100%;font-size:18px}
+.stats{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+.stat{background:rgba(0,0,0,0.03);padding:8px;border-radius:8px;min-width:100px;text-align:center}
+.history{max-height:240px;overflow:auto;margin-top:10px;font-size:14px}
+#levelUpMsg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.86);color:#fff;font-size:36px;z-index:999;display:none}
+.flash-correct{animation:flashCorrect 360ms}
+.flash-wrong{animation:flashWrong 360ms}
+@keyframes flashCorrect{0%{background:rgba(34,197,94,0.9);}100%{background:transparent}}
+@keyframes flashWrong{0%{background:rgba(239,68,68,0.9);}100%{background:transparent}}
+.leaderboard table{width:100%;border-collapse:collapse;margin-top:8px}
+.leaderboard th, .leaderboard td{padding:6px;text-align:left}
+.footer{margin-top:12px;text-align:center;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="wrap" role="application">
+    <header>
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="logo">π+</div>
+        <div>
+          <h1>🎯 Trò chơi tính toán</h1>
+          <div class="small">30 câu (10 câu mỗi cấp): Dễ → Trung bình → Khó. Nhấn Enter để nộp.</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn" class="btn">Bắt đầu</button>
+        <button id="stopBtn" class="btn ghost" disabled>Dừng</button>
+        <button id="skipBtn" class="btn ghost" disabled>Bỏ qua</button>
+        <button id="themeBtn" class="btn ghost">Sáng/Tối</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="left">
+        <div id="homeView" class="panel">
+          <div class="hero">
+            <div style="display:flex;flex-direction:column;">
+              <div style="font-weight:700">Trang chủ</div>
+              <div class="small">Nhập tên (tùy) → Bắt đầu để vào chơi</div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <label class="small">Tên (hiển thị trên kỷ lục):</label>
+            <input id="playerName" placeholder="Người chơi" style="margin-left:8px;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);width:60%"/>
+          </div>
+
+          <div style="margin-top:10px">
+            <label class="small"><input type="checkbox" id="allowDecimal" /> Cho phép thập phân (kết quả chia làm tròn 2 chữ số)</label>
+          </div>
+
+          <div style="margin-top:12px" class="small">Bảng kỷ lục (Top 3)</div>
+          <div class="leaderboard" style="margin-top:8px">
+            <table id="lbTable">
+              <thead><tr><th>#</th><th>Tên</th><th>Thời gian (s)</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+              <button id="clearLB" class="btn ghost">Xóa kỷ lục</button>
+              <div class="small" style="margin-left:auto">Kỷ lục lưu 3 người nhanh nhất</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="gameView" class="panel">
+          <div id="question">Nhấn Bắt đầu để chơi</div>
+
+          <div style="display:flex;gap:12px;justify-content:space-between;margin-top:10px">
+            <div><div class="small">Cấp độ</div><div id="levelName">—</div></div>
+            <div><div class="small">Thời gian</div><div id="timer">0.0s</div></div>
+            <div><div class="small">Câu</div><div id="qcount">0/30</div></div>
+          </div>
+
+          <input id="answer" placeholder="Nhập đáp án rồi nhấn Enter" inputmode="decimal" autocomplete="off"/>
+
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <div style="margin-left:auto" class="small">Bỏ qua trừ 0.5 điểm</div>
+          </div>
+
+          <div class="stats">
+            <div class="stat"><div class="small">Điểm</div><div id="score">0</div></div>
+            <div class="stat"><div class="small">Đúng</div><div id="correct">0</div></div>
+            <div class="stat"><div class="small">Chuỗi</div><div id="streak">0</div></div>
+          </div>
+
+          <div class="history" id="history"></div>
+        </div>
+      </section>
+
+      <aside class="right">
+        <div class="panel">
+          <div class="small">Ghi chú</div>
+          <div class="small" style="margin-top:8px">Nhấn Enter để nộp. Bật "thập phân" để chấp nhận so sánh đến 2 chữ số thập phân.</div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">Phiên bản offline · Âm thanh tổng hợp (không trễ)</footer>
+  </div>
+
+  <div id="levelUpMsg" role="dialog" aria-hidden="true"></div>
+
+<script>
+/* ====== Toàn bộ logic trò chơi (hoàn chỉnh) ====== */
+(() => {
+  // DOM refs
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const skipBtn = document.getElementById('skipBtn');
+  const themeBtn = document.getElementById('themeBtn');
+  const questionEl = document.getElementById('question');
+  const answerInput = document.getElementById('answer');
+  const timerEl = document.getElementById('timer');
+  const qcountEl = document.getElementById('qcount');
+  const levelNameEl = document.getElementById('levelName');
+  const scoreEl = document.getElementById('score');
+  const correctEl = document.getElementById('correct');
+  const streakEl = document.getElementById('streak');
+  const historyEl = document.getElementById('history');
+  const lbBody = document.querySelector('#lbTable tbody');
+  const allowDecimalChk = document.getElementById('allowDecimal');
+  const clearLBBtn = document.getElementById('clearLB');
+  const playerNameInput = document.getElementById('playerName');
+  const levelUpMsg = document.getElementById('levelUpMsg');
+
+  // constants + state
+  const LEVELS = [
+    {id:'easy', name:'Dễ', time:5},
+    {id:'medium', name:'Trung bình', time:10},
+    {id:'hard', name:'Khó', time:20}
+  ];
+  const MAX_Q = 30;
+  const PER_LEVEL = 10;
+
+  let curLevelIdx = 0;      // 0,1,2
+  let perLevelCount = 0;    // 0..9 for current level
+  let totalCount = 0;       // 0..29 overall
+  let running = false;
+  let currentProblem = null; // {display, answer}
+  let timer = null;
+  let timeLeft = 0;
+  let score = 0, correct = 0, streak = 0;
+  let startTime = 0;
+  const USED = new Set(); // uniqueness across whole game
+
+  const LB_KEY = 'mathgame_top3_v3';
+
+  // WebAudio instant tones
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  let audioCtx = null;
+  function ensureAudio(){ if(!audioCtx) audioCtx = new AudioCtx(); if(audioCtx.state==='suspended') audioCtx.resume(); }
+  function playCorrect(){
+    ensureAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(720,t);
+    o.frequency.exponentialRampToValueAtTime(980,t+0.14);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.18,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o.stop(t+0.3);
+  }
+  function playWrong(){
+    ensureAudio();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type='square';
+    o.frequency.setValueAtTime(130,t);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(0.22,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+    const f = audioCtx.createBiquadFilter(); f.type='lowpass'; f.frequency.setValueAtTime(900,t);
+    o.connect(f); f.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o.stop(t+0.22);
+  }
+  function playLevelUp(){
+    ensureAudio();
+    const t = audioCtx.currentTime;
+    const freqs = [380,520,660];
+    freqs.forEach((f,i)=>{
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = i===1 ? 'sawtooth' : 'triangle';
+      o.frequency.setValueAtTime(f, t + i*0.02);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.12, t+0.02 + i*0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+0.9);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t); o.stop(t+0.9);
+    });
+  }
+
+  // utils
+  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+  function fmt(n){ return Number.isInteger(n) ? String(n) : n.toFixed(2); }
+
+  // leaderboard
+  function loadLB(){ try{ const r = localStorage.getItem(LB_KEY); return r ? JSON.parse(r) : []; } catch { return []; } }
+  function saveLB(list){ localStorage.setItem(LB_KEY, JSON.stringify(list)); renderLB(); }
+  function renderLB(){
+    const list = loadLB();
+    lbBody.innerHTML = '';
+    for(let i=0;i<3;i++){
+      const tr = document.createElement('tr');
+      const tdRank = document.createElement('td'); tdRank.textContent = i+1;
+      const tdName = document.createElement('td'); tdName.textContent = list[i] ? list[i].name : '—';
+      const tdTime = document.createElement('td'); tdTime.textContent = list[i] ? list[i].time.toFixed(1) : '—';
+      tr.appendChild(tdRank); tr.appendChild(tdName); tr.appendChild(tdTime);
+      if(i===0 && list[0]) tr.style.fontWeight = '800';
+      lbBody.appendChild(tr);
+    }
+  }
+
+  // generate unique problem for given level
+  function genProblemForLevel(levelIdx){
+    // levelIdx: 0 easy, 1 medium, 2 hard
+    let display, answer;
+    let attempts = 0;
+    while(true){
+      attempts++;
+      if(attempts > 500) break;
+      if(levelIdx === 0){
+        // EASY: +, - ; numbers 0..20
+        const a = randInt(0,20);
+        const b = randInt(0,20);
+        if(Math.random() < 0.5){ display = `${a} + ${b}`; answer = a + b; }
+        else { display = `${a} - ${b}`; answer = a - b; }
+      } else if(levelIdx === 1){
+        // MEDIUM: +, -, ×, ÷ ; numbers 1..50 (division prefer integer unless decimal allowed)
+        const ops = ['+','-','×','÷'];
+        const op = ops[randInt(0,ops.length-1)];
+        if(op === '+'){ const a=randInt(1,50), b=randInt(1,50); display=`${a} + ${b}`; answer=a+b; }
+        else if(op === '-'){ const a=randInt(1,50), b=randInt(1,a); display=`${a} - ${b}`; answer=a-b; }
+        else if(op === '×'){ const a=randInt(2,15), b=randInt(2,15); display=`${a} × ${b}`; answer=a*b; }
+        else { // ÷
+          if(!allowDecimalChk.checked){
+            const b = randInt(2,12); const res = randInt(1,12); const a = b * res;
+            display = `${a} ÷ ${b}`; answer = a / b;
+          } else {
+            const a=randInt(2,200), b=randInt(2,50); display=`${a} ÷ ${b}`; answer = +(a/b).toFixed(2);
+          }
+        }
+      } else {
+        // HARD: include sqrt, ^2, ^3 and bigger ranges
+        const types = ['+','-','×','÷','√','^2','^3'];
+        const t = types[randInt(0,types.length-1)];
+        if(t === '+'){ const a=randInt(10,120), b=randInt(10,120); display=`${a} + ${b}`; answer=a+b; }
+        else if(t === '-'){ const a=randInt(10,150), b=randInt(1,a); display=`${a} - ${b}`; answer=a-b; }
+        else if(t === '×'){ const a=randInt(6,30), b=randInt(3,20); display=`${a} × ${b}`; answer=a*b; }
+        else if(t === '÷'){
+          if(!allowDecimalChk.checked){
+            const b=randInt(2,30); const res = randInt(2,30); const a = b*res; display=`${a} ÷ ${b}`; answer=a/b;
+          } else { const a=randInt(10,400), b=randInt(2,60); display=`${a} ÷ ${b}`; answer=+(a/b).toFixed(2); }
+        } else if(t === '√'){ const root = randInt(4,28); const a = root*root; display=`√${a}`; answer=root; }
+        else if(t === '^2'){ const a=randInt(5,40); display=`${a}²`; answer=a*a; }
+        else { const a=randInt(3,14); display=`${a}³`; answer=a*a*a; }
+      }
+
+      if(!USED.has(display)) { USED.add(display); break; }
+    }
+    return {display, answer};
+  }
+
+  // UI render
+  function renderStats(){
+    levelNameEl.textContent = LEVELS[curLevelIdx].name;
+    qcountEl.textContent = `${totalCount}/${MAX_Q}`;
+    scoreEl.textContent = score;
+    correctEl.textContent = correct;
+    streakEl.textContent = streak;
+  }
+
+  // start game
+  function startGame(){
+    ensureAudio();
+    running = true;
+    curLevelIdx = 0;
+    perLevelCount = 0;
+    totalCount = 0;
+    score = 0; correct = 0; streak = 0;
+    USED.clear();
+    historyEl.innerHTML = '';
+    startTime = Date.now();
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    skipBtn.disabled = false;
+    document.getElementById('homeView').style.display = 'none';
+    document.getElementById('gameView').style.display = 'block';
+    answerInput.disabled = false;
+    answerInput.focus();
+    nextQuestion();
+  }
+
+  // stop game
+  function stopGame(){
+    running = false;
+    clearInterval(timer);
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    skipBtn.disabled = true;
+    answerInput.disabled = true;
+    questionEl.textContent = 'Đã dừng — nhấn Bắt đầu để chơi lại';
+  }
+
+  // advance to next question or handle level up before generating next (ensures exactly 10 per level)
+  function nextQuestion(){
+    if(!running) return;
+    // if completed entire game
+    if(totalCount >= MAX_Q){
+      finishGame();
+      return;
+    }
+    // If perLevelCount reached PER_LEVEL => show level up then increment
+    if(perLevelCount >= PER_LEVEL){
+      // move to next level if exists; if already hard finished, finishGame will catch on next call
+      if(curLevelIdx < LEVELS.length - 1){
+        curLevelIdx++;
+        perLevelCount = 0;
+        showLevelUp(LEVELS[curLevelIdx].name, ()=>{
+          // after overlay, generate question and continue
+          generateAndStart();
+        });
+        return;
+      } else {
+        // already at last level but perLevelCount >= PER_LEVEL, finish
+        finishGame();
+        return;
+      }
+    } else {
+      generateAndStart();
+    }
+  }
+
+  function generateAndStart(){
+    currentProblem = genProblemForLevel(curLevelIdx);
+    questionEl.textContent = currentProblem.display;
+    totalCount++;
+    perLevelCount++;
+    renderStats();
+    answerInput.value = '';
+    answerInput.focus();
+    // start timer
+    clearInterval(timer);
+    timeLeft = LEVELS[curLevelIdx].time;
+    timerEl.textContent = `${timeLeft.toFixed(1)}s`;
+    timer = setInterval(()=>{
+      timeLeft -= 0.1;
+      if(timeLeft < 0) timeLeft = 0;
+      timerEl.textContent = `${timeLeft.toFixed(1)}s`;
+      if(timeLeft <= 0){
+        clearInterval(timer);
+        handleSubmit(null, true);
+      }
+    }, 100);
+  }
+
+  // submission
+  function handleSubmit(rawInput, isTimeout=false){
+    if(!running) return;
+    clearInterval(timer);
+    answerInput.disabled = true;
+    let userVal = null;
+    if(!isTimeout && rawInput !== null){
+      const cleaned = String(rawInput).replace(',', '.').trim();
+      if(cleaned !== '') userVal = Number(cleaned);
+    }
+    const correctAns = currentProblem.answer;
+    let isCorrect = false;
+    if(allowDecimalChk.checked && !Number.isInteger(correctAns)){
+      if(userVal !== null && Number(userVal).toFixed(2) === Number(correctAns).toFixed(2)) isCorrect = true;
+    } else {
+      if(userVal !== null && Math.abs(userVal - correctAns) < 1e-9) isCorrect = true;
+    }
+
+    if(isCorrect){
+      score += 1;
+      correct += 1;
+      streak += 1;
+      playCorrect();
+      document.body.classList.add('flash-correct');
+      setTimeout(()=>document.body.classList.remove('flash-correct'),360);
+      appendHistory(`${currentProblem.display} = ${fmt(correctAns)} — Đúng`);
+    } else {
+      score = Math.max(0, score - 0.5);
+      streak = 0;
+      playWrong();
+      document.body.classList.add('flash-wrong');
+      setTimeout(()=>document.body.classList.remove('flash-wrong'),360);
+      appendHistory(`${currentProblem.display} = ${fmt(correctAns)} — ${isTimeout? 'Hết giờ' : 'Sai'}`);
+    }
+    renderStats();
+
+    // continue after short delay (but nextQuestion handles level-up)
+    setTimeout(()=>{
+      answerInput.disabled = false;
+      answerInput.focus();
+      nextQuestion();
+    }, 450);
+  }
+
+  function appendHistory(text){
+    const d = document.createElement('div'); d.textContent = text;
+    historyEl.insertBefore(d, historyEl.firstChild);
+    if(historyEl.children.length > 150) historyEl.removeChild(historyEl.lastChild);
+  }
+
+  function showLevelUp(name, cb, ms=1600){
+    levelUpMsg.textContent = `🎉 Lên cấp: ${name} 🎉`;
+    levelUpMsg.style.display = 'flex';
+    playLevelUp();
+    setTimeout(()=>{
+      levelUpMsg.style.display = 'none';
+      if(cb) cb();
+    }, ms);
+  }
+
+  // skip (penalty)
+  skipBtn.addEventListener('click', ()=>{
+    if(!running) return;
+    clearInterval(timer);
+    score = Math.max(0, score - 0.5);
+    streak = 0;
+    appendHistory(`Bỏ qua: ${currentProblem.display} = ${fmt(currentProblem.answer)}`);
+    renderStats();
+    // proceed to next
+    setTimeout(()=> nextQuestion(), 300);
+  });
+
+  // finish
+  function finishGame(){
+    running = false;
+    clearInterval(timer);
+    answerInput.disabled = true;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    skipBtn.disabled = true;
+    const totalSec = ((Date.now() - startTime) / 1000);
+    // ask for name and save
+    const defName = (playerNameInput.value || '').trim() || 'Người chơi';
+    const name = prompt(`Hoàn thành! Tổng thời gian: ${totalSec.toFixed(1)} giây\nNhập tên để lưu (hủy để không lưu):`, defName);
+    if(name !== null){
+      saveScore(name.trim() || defName, Number(totalSec.toFixed(1)));
+      renderLB();
+    }
+    // show completion overlay shortly
+    levelUpMsg.textContent = `Hoàn thành! ${totalSec.toFixed(1)}s`;
+    levelUpMsg.style.display = 'flex';
+    setTimeout(()=> levelUpMsg.style.display = 'none', 2000);
+    // return to home view
+    document.getElementById('gameView').style.display = 'none';
+    document.getElementById('homeView').style.display = 'block';
+  }
+
+  function saveScore(name, time){
+    const list = loadLB();
+    list.push({name, time});
+    list.sort((a,b)=> a.time - b.time);
+    const top3 = list.slice(0,3);
+    saveLB(top3);
+  }
+
+  // keyboard: Enter to submit
+  answerInput.addEventListener('keydown', e=>{
+    if(!running) return;
+    if(e.key === 'Enter'){ e.preventDefault(); handleSubmit(answerInput.value, false); }
+  });
+
+  // start/stop/theme/clearLB buttons
+  startBtn.addEventListener('click', ()=>{
+    // gesture to unlock audio
+    ensureAudio();
+    startTime = Date.now();
+    startGame();
+  });
+  stopBtn.addEventListener('click', stopGame);
+  themeBtn.addEventListener('click', ()=> document.body.classList.toggle('dark'));
+  clearLBBtn.addEventListener('click', ()=> { if(confirm('Xóa toàn bộ kỷ lục?')) { localStorage.removeItem(LB_KEY); renderLB(); } });
+
+  // leaderboard load/save
+  function loadLB(){ try{ const r = localStorage.getItem(LB_KEY); return r ? JSON.parse(r) : []; } catch { return []; } }
+  function saveLB(list){ localStorage.setItem(LB_KEY, JSON.stringify(list)); renderLB(); }
+  function renderLB(){ const list = loadLB(); lbBody.innerHTML = ''; for(let i=0;i<3;i++){ const tr=document.createElement('tr'); const td1=document.createElement('td'); td1.textContent=i+1; const td2=document.createElement('td'); td2.textContent=list[i]?list[i].name:'—'; const td3=document.createElement('td'); td3.textContent=list[i]?list[i].time.toFixed(1):'—'; tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); if(i===0 && list[0]) tr.style.fontWeight='800'; lbBody.appendChild(tr);} }
+
+  // init UI: show home, render leaderboard
+  function init(){
+    document.getElementById('homeView').style.display = 'block';
+    document.getElementById('gameView').style.display = 'none';
+    renderLB();
+    renderStats();
+  }
+
+  init();
+
+  // expose for debug
+  window.mathGame = { startGame, stopGame, loadLB };
+
+})();
+</script>
+</body>
+</html>
